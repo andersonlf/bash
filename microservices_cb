@@ -1,0 +1,101 @@
+#!/bin/bash
+
+export eureka_hostname=192.168.7.57
+export eureka_port=9090
+export cloud_configuration_hostname=192.168.7.57
+export cloud_configuration_port=8081
+
+# Usuário da sessão
+URL_USER="http://ic.cabal.com.br/stash/scm"
+
+# Diretório temporário para armazenar os pids
+tmp_dir=/tmp/microservice/pids
+
+template_start_method() {
+  URL_GIT=$1
+  BRANCH=$2
+  DIR=$3
+  JAR=$4
+  PORT=$5
+  
+  git clone $URL_GIT
+  cd $DIR
+  git checkout $BRANCH
+  git pull
+  mvn clean install
+  cd ..
+  mv $DIR/target/$JAR .
+  rm -rf $DIR
+  java -jar $JAR --server.port=$PORT &
+
+  # Criando diretório temporário
+  mkdir -p /tmp/microservice/pids
+  ps aux | grep java | grep $JAR | grep -v grep | awk -F' ' '{print $2}' > /tmp/microservice/pids/$JAR.pid &
+}
+
+services() {
+  # Registry
+  template_start_method $URL_USER/cba/sippe-service-registry.git master sippe-service-registry sippe-service-registry.jar 9090
+  # template_start_method http://abraao.queiroz@ic.cabal.com.br/stash/scm/cba/sippe-service-registry.git master 9090
+
+  # Cloud configuration #
+  template_start_method $URL_USER//cba/sippe-cloud-configuration.git master sippe-cloud-configuration sippe-cloud-configuration.jar 8088
+
+  # Micro Services #
+  # template_start_method http://abraao.queiroz@ic.cabal.com.br/stash/scm/~tulio.sousa/sippe-issuer-spn-account.git feature/funcionalidade-1 sippe-issuer-spn-account sippe-issuer-spn-account.jar 8090
+  # template_start_method http://abraao.queiroz@ic.cabal.com.br/stash/scm/~tulio.sousa/sippe-issuer-spn-newsaccount.git feature/funcionalidade-1 sippe-issuer-spn-newsaccount sippe-issuer-spn-newsaccount.jar 8091
+  # template_start_method http://abraao.queiroz@ic.cabal.com.br/stash/scm/~tulio.sousa/sippe-issuer-spn-operatinglimitused.git feature/funcionalidade-1 sippe-issuer-spn-operatinglimitused sippe-issuer-spn-operatinglimitused.jar 8092
+
+  # template_start_method http://abraao.queiroz@ic.cabal.com.br/stash/scm/~abraao.queiroz/sippe-issuer-spn-account-address.git feature/funcionalidade-1 sippe-issuer-spn-account-address sippe-issuer-spn-account-address.jar 8093
+  # template_start_method http://abraao.queiroz@ic.cabal.com.br/stash/scm/~abraao.queiroz/sippe-issuer-spn-account-limit.git feature/funcionalidade-1 sippe-issuer-spn-account-limit sippe-issuer-spn-account-limit.jar 8094
+  # template_start_method http://abraao.queiroz@ic.cabal.com.br/stash/scm/~abraao.queiroz/sippe-issuer-spn-balance.git feature/funcionalidade-1 sippe-issuer-spn-balance sippe-issuer-spn-balance.jar 8095
+  # template_start_method http://abraao.queiroz@ic.cabal.com.br/stash/scm/~abraao.queiroz/sippe-issuer-spn-contract-holder.git feature/funcionalidade-1 sippe-issuer-spn-contract-holder sippe-issuer-spn-contract-holder.jar 8097
+
+  # template_start_method http://abraao.queiroz@ic.cabal.com.br/stash/scm/~gilson.lopes/sippe-issuer-spn-card.git feature/funcionalidade-1 sippe-app-issuer-spn-card.jar 8082
+  # template_start_method http://abraao.queiroz@ic.cabal.com.br/stash/scm/~gilson.lopes/sippe-issuer-spn-domain-code.git feature/funcionalidade-1 sippe-issuer-spn-domain-code sippe-app-issuer-spn-domain-code.jar 8083
+  # template_start_method http://abraao.queiroz@ic.cabal.com.br/stash/scm/~gilson.lopes/sippe-isser-spn-bin.git feature/funcionalidade-1 sippe-isser-spn-bin sippe-app-issuer-spn-bin.jar 8084
+  # template_start_method http://abraao.queiroz@ic.cabal.com.br/stash/scm/~gilson.lopes/sippe-issuer-spn-processor.git feature/funcionalidade-1 sippe-issuer-spn-processor sippe-app-issuer-spn-processor.jar 8085
+  # template_start_method http://abraao.queiroz@ic.cabal.com.br/stash/scm/~gilson.lopes/sippe-issuer-spn-caf.git feature/funcionalidade-1 sippe-issuer-spn-caf sippe-app-issuer-spn-caf.jar 8086
+  # template_start_method http://abraao.queiroz@ic.cabal.com.br/stash/scm/~gilson.lopes/sippe-issuer-spn-date.git feature/funcionalidade-1 sippe-issuer-spn-date sippe-app-issuer-spn-date.jar 8083
+  # template_start_method http://abraao.queiroz@ic.cabal.com.br/stash/scm/~gilson.lopes/sippe-issuer-spn-parameter.git feature/funcionalidade-1 sippe-issuer-spn-parameter sippe-app-issuer-spn-parameter.jar 8088
+  # template_start_method http://abraao.queiroz@ic.cabal.com.br/stash/scm/~gilson.lopes/sippe-issuer-spn-security.git feature/funcionalidade-1 sippe-issuer-spn-security sippe-app-issuer-spn-security.jar 8089  
+}
+
+
+prepare_directory() {
+  mkdir -p services
+  cd services
+}
+
+# Start
+start() {
+  echo starting services...
+  prepare_directory
+  services
+}
+
+# Kill 
+kill_process() {
+  echo "Eliminando processos..."
+  
+  pid_names=`ls $tmp_dir/*.pid`
+  for service_pid in $pid_names
+  do
+   kill -9 $(cat $service_pid)
+  done
+  
+  # remover os pids temporários
+  cd $tmp_dir
+  rm *.pid
+}
+
+# if condition
+if [ "$1" = "start" ] ; then
+  start
+elif [ "$1" = "stop" ] ; then
+  kill_process
+else
+  # filename="${1##*/}";filename="${filename%.*}"
+  # echo $filename
+  echo "Informe pelo menos um parâmetro: start ou stop"
+fi
